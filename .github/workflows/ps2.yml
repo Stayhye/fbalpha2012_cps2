@@ -11,7 +11,7 @@ jobs:
         run: |
           make -f Makefile.libretro platform=ps2
       - name: Upload Artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: fbalpha2012_cps2_ps2.elf
           path: "*.elf"
