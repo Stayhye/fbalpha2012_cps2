@@ -12,8 +12,9 @@ jobs:
         run: |
           apk update
           apk add --no-cache git make build-base
+          # Fix the "dubious ownership" error
+          git config --global --add safe.directory /__w/fbalpha2012_cps2/fbalpha2012_cps2
 
-      # STEP 2: Now that Git exists, we can checkout with submodules
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
