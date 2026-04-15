@@ -1,34 +1,63 @@
-TARGET_NAME := fbalpha2012_cps2
-include Makefile.common
+# --- PS2 Toolchain Configuration ---
+ifeq ($(PS2DEV),)
+  PS2DEV := /usr/local/ps2dev
+endif
+PS2SDK := $(PS2DEV)/ps2sdk
 
-# --- PS2 Toolchain Setup ---
-# Assumes PS2DEV and PS2SDK are set in your environment/GitHub Action
-# If not, these will point to the standard ps2dev container paths
-PS2DEV ?= /usr/local/ps2dev
-PS2SDK ?= $(PS2DEV)/ps2sdk
 include $(PS2SDK)/Defs.make
 
-# Emotion Engine (EE) Compilers
+TARGET := fbalpha2012_cps2_libretro_ps2.a
+
+# --- Compilers ---
 CC  = ee-gcc
 CXX = ee-g++
 AR  = ee-ar
 
+# --- Core Source Files ---
+# These are the standard source locations for the FBA 2012 CPS2 core
+CORE_DIR := .
+BURN_DIR := $(CORE_DIR)/src/burn
+FBA_BURN_DRIVERS_DIR := $(BURN_DIR)/drv/capcom
+
+# Include the common source list
+# If your repo doesn't have Makefile.common, we define the basics here:
+SOURCES_C += $(CORE_DIR)/libretro-common/file/retro_dirent.c \
+             $(CORE_DIR)/src/burner/libretro/libretro.cpp
+
+# --- CPS2 Specific Sources (Adjust paths if your repo structure differs) ---
+SOURCES_C += $(FBA_BURN_DRIVERS_DIR)/cps.cpp \
+             $(FBA_BURN_DRIVERS_DIR)/cps2_run.cpp \
+             $(FBA_BURN_DRIVERS_DIR)/cps_config.cpp \
+             $(FBA_BURN_DRIVERS_DIR)/cps_draw.cpp \
+             $(FBA_BURN_DRIVERS_DIR)/cps_mem.cpp \
+             $(FBA_BURN_DRIVERS_DIR)/cps_obj.cpp \
+             $(FBA_BURN_DRIVERS_DIR)/cps_pal.cpp \
+             $(FBA_BURN_DRIVERS_DIR)/cps_run.cpp \
+             $(FBA_BURN_DRIVERS_DIR)/cps_rw.cpp \
+             $(FBA_BURN_DRIVERS_DIR)/cps_scr.cpp
+
 # --- Compilation Flags ---
-# -G0 is critical for PS2 to avoid GP-relative addressing issues in large binaries
-# -D_EE, -D_PS2, and -DPS2 are standard SDK defines
-DEFINES := -D_EE -D_PS2 -DPS2 -D__PS2__ -DSTATIC_LINKING=1 -DGLOBAL_USER_CONFIG
-CFLAGS   += $(DEFINES) -O3 -G0 -fno-strict-aliasing -fno-exceptions
-CXXFLAGS += $(DEFINES) -O3 -G0 -fno-strict-aliasing -fno-exceptions -fno-rtti
+# -G0: Disables the small data limit (Essential for PS2 to prevent linker errors)
+# -D__LIBRETRO__: Standard libretro define
+# -DLSB_FIRST: PS2 is Little Endian
+DEFINES := -D_EE -D_PS2 -DPS2 -D__PS2__ -D__LIBRETRO__ -DLSB_FIRST -DSTATIC_LINKING=1 -DWANT_CPS2
+COMMON_FLAGS := -O3 -G0 -fno-strict-aliasing -fno-exceptions -Wall $(DEFINES)
 
-# Include paths for both the core and the PS2 SDK
-INCLUDES += $(INCFLAGS) 
-INCLUDES += -I$(PS2SDK)/ee/include -I$(PS2SDK)/common/include
+CFLAGS   += $(COMMON_FLAGS) -std=gnu99
+CXXFLAGS += $(COMMON_FLAGS) -fno-rtti
 
-# --- Target ---
-TARGET := $(TARGET_NAME)_libretro_ps2.a
+# --- Include Paths ---
+INCFLAGS += -I. \
+            -I$(CORE_DIR)/src/burn \
+            -I$(CORE_DIR)/src/burn/devices \
+            -I$(CORE_DIR)/src/burn/drv/capcom \
+            -I$(CORE_DIR)/src/burner \
+            -I$(CORE_DIR)/src/burner/libretro \
+            -I$(CORE_DIR)/libretro-common/include \
+            -I$(PS2SDK)/ee/include \
+            -I$(PS2SDK)/common/include
 
 # --- Build Rules ---
-# Convert all source files from Makefile.common into .o object files
 OBJECTS := $(SOURCES_C:.c=.o) $(SOURCES_CXX:.cpp=.o)
 
 all: $(TARGET)
@@ -37,10 +66,10 @@ $(TARGET): $(OBJECTS)
 	$(AR) rcs $@ $(OBJECTS)
 
 %.o: %.c
-	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
+	$(CC) $(CFLAGS) $(INCFLAGS) -c -o $@ $<
 
 %.o: %.cpp
-	$(CXX) $(CXXFLAGS) $(INCLUDES) -c -o $@ $<
+	$(CXX) $(CXXFLAGS) $(INCFLAGS) -c -o $@ $<
 
 clean:
 	rm -f $(OBJECTS) $(TARGET)
