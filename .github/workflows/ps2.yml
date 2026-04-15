@@ -7,29 +7,36 @@ jobs:
     runs-on: ubuntu-latest
     container: ps2dev/ps2dev:latest
     steps:
-      # STEP 1: Manually install Git and Make before anything else
       - name: Install System Dependencies
         run: |
           apk update
           apk add --no-cache git make build-base
-          # Tell Git to trust the workspace before we touch it
-          git config --global --add safe.directory /__w/fbalpha2012_cps2/fbalpha2012_cps2
 
       - name: Checkout Code
         uses: actions/checkout@v4
+        # We try recursive here, but we will force it in the next step just in case
         with:
           submodules: recursive
 
-      - name: Verify Files (Debug)
+      - name: Fix Permissions and Force Submodules
         run: |
-          # If this returns 'File not found', the submodules didn't download
-          ls -l libretro-common/file/retro_dirent.c || echo "File not found!"
+          # 1. Trust the directory
+          git config --global --add safe.directory /__w/fbalpha2012_cps2/fbalpha2012_cps2
+          
+          # 2. Manually initialize and update submodules
+          git submodule sync --recursive
+          git submodule update --init --recursive
+
+      - name: Verify Files (Final Check)
+        run: |
+          ls -l libretro-common/file/retro_dirent.c
 
       - name: Compile
         run: |
           export PS2DEV=/usr/local/ps2dev
           export PS2SDK=$PS2DEV/ps2sdk
           export PATH=$PS2DEV/bin:$PS2DEV/ee/bin:$PS2DEV/iop/bin:$PATH
+          
           make -f Makefile.libretro
           
       - name: Upload Artifact
