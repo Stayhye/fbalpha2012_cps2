@@ -7,24 +7,26 @@ jobs:
     runs-on: ubuntu-latest
     container: ps2dev/ps2dev:latest
     steps:
+      # STEP 1: Manually install Git and Make before anything else
+      - name: Install System Dependencies
+        run: |
+          apk update
+          apk add --no-cache git make build-base
+
+      # STEP 2: Now that Git exists, we can checkout with submodules
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - name: Install Build Dependencies
-        run: |
-          # The ps2dev image uses Alpine Linux, so we use apk
-          apk add --no-cache make git build-base
-
+      # STEP 3: Build using the paths for the PS2 toolchain
       - name: Compile
         run: |
-          # Explicitly set the PS2 environment variables
           export PS2DEV=/usr/local/ps2dev
           export PS2SDK=$PS2DEV/ps2sdk
           export PATH=$PS2DEV/bin:$PS2DEV/ee/bin:$PS2DEV/iop/bin:$PATH
           
-          # Run the build
+          # Using the simplified makefile we discussed
           make -f Makefile.libretro platform=ps2
           
       - name: Upload Artifact
