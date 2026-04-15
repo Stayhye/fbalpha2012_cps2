@@ -15,25 +15,32 @@ AR  = ee-ar
 
 # --- Core Source Files ---
 CORE_DIR := .
-BURN_DIR := $(CORE_DIR)/src/burn
-FBA_BURN_DRIVERS_DIR := $(BURN_DIR)/drv/capcom
 
-# Define source files
-# Note: CPS2 core uses many .cpp files even for C logic, 
-# so we separate them strictly for the compiler.
+# Ensure these paths match your actual folder structure
 SOURCES_C += $(CORE_DIR)/libretro-common/file/retro_dirent.c
 
+# If the error persists, it's likely a C++ file masquerading as C
 SOURCES_CXX += $(CORE_DIR)/src/burner/libretro/libretro.cpp \
-               $(FBA_BURN_DRIVERS_DIR)/cps.cpp \
-               $(FBA_BURN_DRIVERS_DIR)/cps2_run.cpp \
-               $(FBA_BURN_DRIVERS_DIR)/cps_config.cpp \
-               $(FBA_BURN_DRIVERS_DIR)/cps_draw.cpp \
-               $(FBA_BURN_DRIVERS_DIR)/cps_mem.cpp \
-               $(FBA_BURN_DRIVERS_DIR)/cps_obj.cpp \
-               $(FBA_BURN_DRIVERS_DIR)/cps_pal.cpp \
-               $(FBA_BURN_DRIVERS_DIR)/cps_run.cpp \
-               $(FBA_BURN_DRIVERS_DIR)/cps_rw.cpp \
-               $(FBA_BURN_DRIVERS_DIR)/cps_scr.cpp
+               $(CORE_DIR)/src/burn/drv/capcom/cps.cpp \
+               $(CORE_DIR)/src/burn/drv/capcom/cps2_run.cpp \
+               $(CORE_DIR)/src/burn/drv/capcom/cps_config.cpp \
+               $(CORE_DIR)/src/burn/drv/capcom/cps_draw.cpp \
+               $(CORE_DIR)/src/burn/drv/capcom/cps_mem.cpp \
+               $(CORE_DIR)/src/burn/drv/capcom/cps_obj.cpp \
+               $(CORE_DIR)/src/burn/drv/capcom/cps_pal.cpp \
+               $(CORE_DIR)/src/burn/drv/capcom/cps_run.cpp \
+               $(CORE_DIR)/src/burn/drv/capcom/cps_rw.cpp \
+               $(CORE_DIR)/src/burn/drv/capcom/cps_scr.cpp
+
+# --- Updated Build Rules ---
+# This version creates the directory before compiling to prevent "No such file" errors
+%.o: %.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) $(INCFLAGS) -c -o $@ $<
+
+%.o: %.cpp
+	@mkdir -p $(dir $@)
+	$(CXX) $(CXXFLAGS) $(INCFLAGS) -c -o $@ $<
 
 # --- Compilation Flags ---
 # -G0 is mandatory for PS2 to avoid "GP relative" linking errors
