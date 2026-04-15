@@ -14,32 +14,29 @@ CXX = ee-g++
 AR  = ee-ar
 
 # --- Core Source Files ---
-# These are the standard source locations for the FBA 2012 CPS2 core
 CORE_DIR := .
 BURN_DIR := $(CORE_DIR)/src/burn
 FBA_BURN_DRIVERS_DIR := $(BURN_DIR)/drv/capcom
 
-# Include the common source list
-# If your repo doesn't have Makefile.common, we define the basics here:
-SOURCES_C += $(CORE_DIR)/libretro-common/file/retro_dirent.c \
-             $(CORE_DIR)/src/burner/libretro/libretro.cpp
+# Define source files
+# Note: CPS2 core uses many .cpp files even for C logic, 
+# so we separate them strictly for the compiler.
+SOURCES_C += $(CORE_DIR)/libretro-common/file/retro_dirent.c
 
-# --- CPS2 Specific Sources (Adjust paths if your repo structure differs) ---
-SOURCES_C += $(FBA_BURN_DRIVERS_DIR)/cps.cpp \
-             $(FBA_BURN_DRIVERS_DIR)/cps2_run.cpp \
-             $(FBA_BURN_DRIVERS_DIR)/cps_config.cpp \
-             $(FBA_BURN_DRIVERS_DIR)/cps_draw.cpp \
-             $(FBA_BURN_DRIVERS_DIR)/cps_mem.cpp \
-             $(FBA_BURN_DRIVERS_DIR)/cps_obj.cpp \
-             $(FBA_BURN_DRIVERS_DIR)/cps_pal.cpp \
-             $(FBA_BURN_DRIVERS_DIR)/cps_run.cpp \
-             $(FBA_BURN_DRIVERS_DIR)/cps_rw.cpp \
-             $(FBA_BURN_DRIVERS_DIR)/cps_scr.cpp
+SOURCES_CXX += $(CORE_DIR)/src/burner/libretro/libretro.cpp \
+               $(FBA_BURN_DRIVERS_DIR)/cps.cpp \
+               $(FBA_BURN_DRIVERS_DIR)/cps2_run.cpp \
+               $(FBA_BURN_DRIVERS_DIR)/cps_config.cpp \
+               $(FBA_BURN_DRIVERS_DIR)/cps_draw.cpp \
+               $(FBA_BURN_DRIVERS_DIR)/cps_mem.cpp \
+               $(FBA_BURN_DRIVERS_DIR)/cps_obj.cpp \
+               $(FBA_BURN_DRIVERS_DIR)/cps_pal.cpp \
+               $(FBA_BURN_DRIVERS_DIR)/cps_run.cpp \
+               $(FBA_BURN_DRIVERS_DIR)/cps_rw.cpp \
+               $(FBA_BURN_DRIVERS_DIR)/cps_scr.cpp
 
 # --- Compilation Flags ---
-# -G0: Disables the small data limit (Essential for PS2 to prevent linker errors)
-# -D__LIBRETRO__: Standard libretro define
-# -DLSB_FIRST: PS2 is Little Endian
+# -G0 is mandatory for PS2 to avoid "GP relative" linking errors
 DEFINES := -D_EE -D_PS2 -DPS2 -D__PS2__ -D__LIBRETRO__ -DLSB_FIRST -DSTATIC_LINKING=1 -DWANT_CPS2
 COMMON_FLAGS := -O3 -G0 -fno-strict-aliasing -fno-exceptions -Wall $(DEFINES)
 
@@ -57,7 +54,8 @@ INCFLAGS += -I. \
             -I$(PS2SDK)/ee/include \
             -I$(PS2SDK)/common/include
 
-# --- Build Rules ---
+# --- Object Handling ---
+# This converts the source list into an object list while preserving folder structure
 OBJECTS := $(SOURCES_C:.c=.o) $(SOURCES_CXX:.cpp=.o)
 
 all: $(TARGET)
@@ -65,13 +63,22 @@ all: $(TARGET)
 $(TARGET): $(OBJECTS)
 	$(AR) rcs $@ $(OBJECTS)
 
+# Rule for C files
+# The @mkdir -p ensures that subfolders like 'libretro-common/file/' 
+# exist before the compiler tries to write the .o file there.
 %.o: %.c
+	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) $(INCFLAGS) -c -o $@ $<
 
+# Rule for C++ files
 %.o: %.cpp
+	@mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS) $(INCFLAGS) -c -o $@ $<
 
 clean:
 	rm -f $(OBJECTS) $(TARGET)
+	rm -rf libretro-common/file/*.o
+	rm -rf src/burner/libretro/*.o
+	rm -rf $(FBA_BURN_DRIVERS_DIR)/*.o
 
 .PHONY: all clean
