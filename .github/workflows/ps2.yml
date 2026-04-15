@@ -1,0 +1,17 @@
+name: PS2 Build
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: ps2dev/ps2dev:latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Compile Core
+        run: |
+          make -f Makefile.libretro platform=ps2
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: fbalpha2012_cps2_ps2.elf
+          path: "*.elf"
