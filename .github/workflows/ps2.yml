@@ -12,29 +12,25 @@ jobs:
         run: |
           apk update
           apk add --no-cache git make build-base
-          # Fix the "dubious ownership" error
+          # Tell Git to trust the workspace before we touch it
           git config --global --add safe.directory /__w/fbalpha2012_cps2/fbalpha2012_cps2
 
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
           submodules: recursive
-          fetch-depth: 0
 
-      - name: Force Submodule Sync
+      - name: Verify Files (Debug)
         run: |
-          git submodule sync
-          git submodule update --init --recursive
+          # If this returns 'File not found', the submodules didn't download
+          ls -l libretro-common/file/retro_dirent.c || echo "File not found!"
 
-      # STEP 3: Build using the paths for the PS2 toolchain
       - name: Compile
         run: |
           export PS2DEV=/usr/local/ps2dev
           export PS2SDK=$PS2DEV/ps2sdk
           export PATH=$PS2DEV/bin:$PS2DEV/ee/bin:$PS2DEV/iop/bin:$PATH
-          
-          # Using the simplified makefile we discussed
-          make -f Makefile.libretro platform=ps2
+          make -f Makefile.libretro
           
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
