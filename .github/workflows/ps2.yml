@@ -12,23 +12,21 @@ jobs:
           apk update
           apk add --no-cache git make build-base
 
-      - name: Checkout Code
+      - name: Checkout Base Code
         uses: actions/checkout@v4
-        # We try recursive here, but we will force it in the next step just in case
-        with:
-          submodules: recursive
+        # We don't pull submodules here because Git will block it
 
-      - name: Fix Permissions and Force Submodules
+      - name: Fix Git and Pull Submodules
         run: |
-          # 1. Trust the directory
+          # 1. Fix the ownership block
           git config --global --add safe.directory /__w/fbalpha2012_cps2/fbalpha2012_cps2
           
-          # 2. Manually initialize and update submodules
-          git submodule sync --recursive
+          # 2. Manually pull the submodules now that Git is 'safe'
           git submodule update --init --recursive
 
-      - name: Verify Files (Final Check)
+      - name: Verify Submodule Files
         run: |
+          # This must succeed before we move to Compile
           ls -l libretro-common/file/retro_dirent.c
 
       - name: Compile
