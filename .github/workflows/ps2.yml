@@ -1,41 +1,34 @@
-name: Build FB Alpha 2012 CPS2 for PS2
+name: Build PS2 Core
 
-on:
-  push:
-    branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
-  workflow_dispatch:
+on: [push, pull_request, workflow_dispatch]
 
 jobs:
-  build-ps2:
+  build:
     runs-on: ubuntu-latest
     container: ps2dev/ps2dev:latest
-    
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
-          submodules: recursive  # Crucial for libretro-common headers
+          submodules: recursive
 
       - name: Install Build Dependencies
         run: |
+          # The ps2dev image uses Alpine Linux, so we use apk
           apk add --no-cache make git build-base
 
-      - name: Compile Core
+      - name: Compile
         run: |
-          # Set up environment variables for the PS2 toolchain
+          # Explicitly set the PS2 environment variables
           export PS2DEV=/usr/local/ps2dev
           export PS2SDK=$PS2DEV/ps2sdk
           export PATH=$PS2DEV/bin:$PS2DEV/ee/bin:$PS2DEV/iop/bin:$PATH
           
-          # Run the makefile you created
-          make -f Makefile.libretro
-
+          # Run the build
+          make -f Makefile.libretro platform=ps2
+          
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: fbalpha2012_cps2_ps2
-          path: |
-            *.a
-            *.elf
+          name: fba2012_cps2_ps2
+          path: "*.a"
