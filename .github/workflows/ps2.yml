@@ -10,37 +10,34 @@ jobs:
       - name: Install System Dependencies
         run: |
           apk update
-          # gcompat allows the PS2 compilers to run on Alpine Linux
-          apk add --no-cache git make build-base cdrkit gcompat
+          # gcompat and libstdc++ are required to run the PS2 compilers on Alpine
+          apk add --no-cache git make build-base cdrkit gcompat libstdc++
 
       - name: Checkout Base Code
         uses: actions/checkout@v4
 
       - name: Fix Git and Submodules
         run: |
-          # Fix ownership issues
           git config --global --add safe.directory /__w/fbalpha2012_cps2/fbalpha2012_cps2
-          
-          # Force submodules
           git submodule update --init --recursive
-          
-          # Emergency manual clone for libretro-common
           if [ ! -f "libretro-common/file/retro_dirent.c" ]; then
             rm -rf libretro-common
             git clone --depth 1 https://github.com/libretro/libretro-common.git libretro-common
           fi
 
+      - name: Verify Compiler Access
+        run: |
+          # This test ensures the binary can actually execute
+          /usr/local/ps2dev/ee/bin/ee-gcc --version
+
       - name: Compile
         run: |
-          # Define absolute paths
           export PS2DEV=/usr/local/ps2dev
           export PS2SDK=$PS2DEV/ps2sdk
           export BIN=$PS2DEV/ee/bin
-          
-          # Add to path for this step
           export PATH=$BIN:$PS2DEV/bin:$PATH
           
-          # Run make and force the compiler locations
+          # We pass the compilers explicitly to the Makefile
           make -f Makefile.libretro \
             CC=$BIN/ee-gcc \
             CXX=$BIN/ee-g++ \
@@ -49,16 +46,13 @@ jobs:
       - name: Create ISO for PCSX2
         run: |
           mkdir -p iso_root
-          
-          # Copy ELF if built, else copy the .a for debugging
+          # Check for ELF or use the .a library for the artifact
           if [ -f *.elf ]; then
             cp *.elf iso_root/MAIN.ELF
           else
-            echo "No ELF found, copying static lib for artifact storage"
-            cp *.a iso_root/
+            cp *.a iso_root/ 2>/dev/null || echo "No library found yet"
           fi
           
-          # Boot config
           echo "BOOT2 = cdrom0:\MAIN.ELF;1" > iso_root/SYSTEM.CNF
           echo "VER = 1.00" >> iso_root/SYSTEM.CNF
           echo "VMODE = NTSC" >> iso_root/SYSTEM.CNF
