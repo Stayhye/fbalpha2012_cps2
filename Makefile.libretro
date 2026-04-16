@@ -1,10 +1,5 @@
 # --- PS2 Toolchain Configuration ---
-PS2DEV  ?= /usr/local/ps2dev
-PS2SDK  ?= $(PS2DEV)/ps2sdk
-
--include $(PS2SDK)/Defs.make
-
-# These will be passed in from the GitHub Action
+# We will rely on the paths passed in by the GitHub Action
 CC  ?= ee-gcc
 CXX ?= ee-g++
 AR  ?= ee-ar
@@ -36,6 +31,9 @@ CFLAGS   += $(COMMON_FLAGS) -std=gnu99
 CXXFLAGS += $(COMMON_FLAGS) -fno-rtti
 
 # --- Include Paths ---
+# We use a wildcard search for the SDK headers since the path is uncertain
+PS2SDK_INC := $(shell find /usr -name "ps2sdk" -type d | head -n 1)
+
 INCFLAGS := -I. \
             -I$(CORE_DIR)/src/burn \
             -I$(CORE_DIR)/src/burn/devices \
@@ -43,8 +41,8 @@ INCFLAGS := -I. \
             -I$(CORE_DIR)/src/burner \
             -I$(CORE_DIR)/src/burner/libretro \
             -I$(CORE_DIR)/libretro-common/include \
-            -I$(PS2SDK)/ee/include \
-            -I$(PS2SDK)/common/include
+            -I$(PS2SDK_INC)/ee/include \
+            -I$(PS2SDK_INC)/common/include
 
 OBJECTS := $(SOURCES_C:.c=.o) $(SOURCES_CXX:.cpp=.o)
 
