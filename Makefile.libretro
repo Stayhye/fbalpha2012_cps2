@@ -2,10 +2,9 @@
 PS2DEV  ?= /usr/local/ps2dev
 PS2SDK  ?= $(PS2DEV)/ps2sdk
 
-# Include PS2SDK definitions
 -include $(PS2SDK)/Defs.make
 
-# Use the compilers provided by the environment
+# Use the compilers provided by the Action
 CC  ?= ee-gcc
 CXX ?= ee-g++
 AR  ?= ee-ar
