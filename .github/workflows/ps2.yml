@@ -10,7 +10,7 @@ jobs:
       - name: Install System Dependencies
         run: |
           apk update
-          # gcompat and libstdc++ are required to run the PS2 compilers on Alpine
+          # gcompat and libstdc++ are the base, but we need the symlink next
           apk add --no-cache git make build-base cdrkit gcompat libstdc++
 
       - name: Checkout Base Code
@@ -25,9 +25,15 @@ jobs:
             git clone --depth 1 https://github.com/libretro/libretro-common.git libretro-common
           fi
 
+      - name: Patch Alpine Loader
+        run: |
+          # This creates the "missing" link that causes the 'not found' error
+          mkdir -p /lib64
+          ln -s /lib/libc.musl-x86_64.so.1 /lib64/ld-linux-x86-64.so.2 || true
+          
       - name: Verify Compiler Access
         run: |
-          # This test ensures the binary can actually execute
+          # Now this should return the version instead of 'not found'
           /usr/local/ps2dev/ee/bin/ee-gcc --version
 
       - name: Compile
@@ -37,7 +43,6 @@ jobs:
           export BIN=$PS2DEV/ee/bin
           export PATH=$BIN:$PS2DEV/bin:$PATH
           
-          # We pass the compilers explicitly to the Makefile
           make -f Makefile.libretro \
             CC=$BIN/ee-gcc \
             CXX=$BIN/ee-g++ \
@@ -46,11 +51,10 @@ jobs:
       - name: Create ISO for PCSX2
         run: |
           mkdir -p iso_root
-          # Check for ELF or use the .a library for the artifact
           if [ -f *.elf ]; then
             cp *.elf iso_root/MAIN.ELF
           else
-            cp *.a iso_root/ 2>/dev/null || echo "No library found yet"
+            cp *.a iso_root/ 2>/dev/null || echo "No library found"
           fi
           
           echo "BOOT2 = cdrom0:\MAIN.ELF;1" > iso_root/SYSTEM.CNF
