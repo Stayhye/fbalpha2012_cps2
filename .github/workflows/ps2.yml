@@ -5,8 +5,8 @@ on: [push, pull_request, workflow_dispatch]
 jobs:
   build:
     runs-on: ubuntu-latest
-    # Using the Debian-based stable image to fix the "not found" binary errors
-    container: ps2dev/ps2dev:v2023.07
+    # v1.0 is the standard Debian-based stable image
+    container: ps2dev/ps2dev:v1.0
     steps:
       - name: Install System Dependencies
         run: |
@@ -19,7 +19,7 @@ jobs:
 
       - name: Fix Git and Sync Submodules
         run: |
-          # Fix ownership issues for the container
+          # Fix ownership issues for the container environment
           git config --global --add safe.directory /__w/fbalpha2012_cps2/fbalpha2012_cps2
           
           # Initialize submodules
