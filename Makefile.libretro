@@ -4,7 +4,7 @@ PS2SDK  ?= $(PS2DEV)/ps2sdk
 
 -include $(PS2SDK)/Defs.make
 
-# These will be set by the GitHub Action command line
+# These will be passed in from the GitHub Action
 CC  ?= ee-gcc
 CXX ?= ee-g++
 AR  ?= ee-ar
@@ -53,7 +53,6 @@ all: $(TARGET)
 $(TARGET): $(OBJECTS)
 	$(AR) rcs $@ $(OBJECTS)
 
-# Rules for compiling objects
 %.o: %.c
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) $(INCFLAGS) -c -o $@ $<
