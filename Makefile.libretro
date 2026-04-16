@@ -1,12 +1,11 @@
 # --- PS2 Toolchain Configuration ---
-# These will be overridden by the GitHub Action command line
 PS2DEV  ?= /usr/local/ps2dev
 PS2SDK  ?= $(PS2DEV)/ps2sdk
 
-# Defs.make provides PS2-specific environment setup
+# Include standard PS2 definitions
 -include $(PS2SDK)/Defs.make
 
-# Fallback names if not provided by Defs.make or Command Line
+# Fallback compiler names
 CC  ?= ee-gcc
 CXX ?= ee-g++
 AR  ?= ee-ar
@@ -18,7 +17,10 @@ CORE_DIR := .
 BURN_DIR := $(CORE_DIR)/src/burn
 FBA_BURN_DRIVERS_DIR := $(BURN_DIR)/drv/capcom
 
-SOURCES_C   := $(CORE_DIR)/libretro-common/file/retro_dirent.c
+# C Sources
+SOURCES_C := $(CORE_DIR)/libretro-common/file/retro_dirent.c
+
+# C++ Sources
 SOURCES_CXX := $(CORE_DIR)/src/burner/libretro/libretro.cpp \
                $(FBA_BURN_DRIVERS_DIR)/cps.cpp \
                $(FBA_BURN_DRIVERS_DIR)/cps2_run.cpp \
@@ -56,6 +58,7 @@ all: $(TARGET)
 $(TARGET): $(OBJECTS)
 	$(AR) rcs $@ $(OBJECTS)
 
+# Rules with automatic directory creation
 %.o: %.c
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) $(INCFLAGS) -c -o $@ $<
