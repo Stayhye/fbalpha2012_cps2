@@ -24,35 +24,45 @@ jobs:
             git clone --depth 1 https://github.com/libretro/libretro-common.git libretro-common
           fi
 
-      - name: Locate and Patch Compiler
+      - name: Deep Search and Patch
         run: |
-          # Create the glibc linker symlink for Alpine
+          # 1. Create the glibc linker symlink for Alpine (Essential for glibc binaries)
           mkdir -p /lib64
           ln -sf /lib/ld-linux-x86-64.so.2 /lib64/ld-linux-x86-64.so.2 || true
           
-          # Find where ee-gcc actually lives and save it to a variable
-          EE_PATH=$(find /usr -name "ee-gcc" | head -n 1)
-          EE_BIN_DIR=$(dirname "$EE_PATH")
+          # 2. Deep search the entire root for the compiler
+          echo "Searching for ee-gcc..."
+          EE_PATH=$(find / -name "ee-gcc" -type f 2>/dev/null | head -n 1)
           
           if [ -z "$EE_PATH" ]; then
-            echo "CRITICAL ERROR: ee-gcc not found in /usr"
+            echo "CRITICAL: ee-gcc not found anywhere in the container!"
+            # List root directories to help us debug manually if this fails
+            ls -R / | grep "bin" || true
             exit 1
           fi
           
+          EE_BIN_DIR=$(dirname "$EE_PATH")
           echo "Found compiler at: $EE_PATH"
-          chmod +x "$EE_BIN_DIR"/ee-*
           
-          # Save these for the next steps
+          # 3. Apply execution permissions
+          chmod +x "$EE_BIN_DIR"/ee-* || true
+          
+          # 4. Export paths for the next steps
           echo "EE_BIN_DIR=$EE_BIN_DIR" >> $GITHUB_ENV
           echo "$EE_BIN_DIR" >> $GITHUB_PATH
+          
+          # 5. Find PS2SDK path
+          SDK_PATH=$(find / -name "ps2sdk" -type d 2>/dev/null | head -n 1)
+          echo "PS2SDK=$SDK_PATH" >> $GITHUB_ENV
 
       - name: Compile
         run: |
-          # Use the discovered path to run make
+          # Use the discovered paths
           make -f Makefile.libretro \
             CC="$EE_BIN_DIR/ee-gcc" \
             CXX="$EE_BIN_DIR/ee-g++" \
-            AR="$EE_BIN_DIR/ee-ar"
+            AR="$EE_BIN_DIR/ee-ar" \
+            PS2SDK_PATH="$PS2SDK"
 
       - name: Create ISO for PCSX2
         run: |
@@ -60,7 +70,7 @@ jobs:
           if [ -f *.elf ]; then
             cp *.elf iso_root/MAIN.ELF
           else
-            cp *.a iso_root/ 2>/dev/null || echo "No library files found"
+            cp *.a iso_root/ 2>/dev/null || echo "No library files"
           fi
           
           echo "BOOT2 = cdrom0:\MAIN.ELF;1" > iso_root/SYSTEM.CNF
