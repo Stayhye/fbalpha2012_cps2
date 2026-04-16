@@ -5,69 +5,70 @@ on: [push, pull_request, workflow_dispatch]
 jobs:
   build:
     runs-on: ubuntu-latest
-    container: ps2dev/ps2dev:latest
+    # Using the Debian-based stable image to fix the "not found" binary errors
+    container: ps2dev/ps2dev:v2023.07
     steps:
       - name: Install System Dependencies
         run: |
-          apk update
-          # patchelf is the heavy hitter for fixing broken binaries
-          apk add --no-cache git make build-base cdrkit gcompat libc6-compat libstdc++ patchelf
+          apt-get update
+          # genisoimage is the Debian equivalent of mkisofs
+          apt-get install -y git make build-essential genisoimage
 
       - name: Checkout Base Code
         uses: actions/checkout@v4
 
-      - name: Fix Git and Submodules
+      - name: Fix Git and Sync Submodules
         run: |
+          # Fix ownership issues for the container
           git config --global --add safe.directory /__w/fbalpha2012_cps2/fbalpha2012_cps2
+          
+          # Initialize submodules
           git submodule update --init --recursive
+          
+          # Emergency manual clone if the submodule check fails
           if [ ! -f "libretro-common/file/retro_dirent.c" ]; then
+            echo "Submodules failed to sync. Manually cloning libretro-common..."
             rm -rf libretro-common
             git clone --depth 1 https://github.com/libretro/libretro-common.git libretro-common
           fi
 
-      - name: Nuclear Alpine Patch
+      - name: Set Environment
         run: |
-          # Find the actual loader on this system
-          M_LOADER=$(find /lib -name "ld-musl-x86_64.so.1" | head -n 1)
-          
-          # Force the PS2 binaries to use the Alpine loader
-          # We do this for the compiler, the linker, and the preprocessor
-          patchelf --set-interpreter "$M_LOADER" /usr/local/ps2dev/ee/bin/ee-gcc || true
-          patchelf --set-interpreter "$M_LOADER" /usr/local/ps2dev/ee/libexec/gcc/ee/3.2.3/cc1 || true
-          
-          # Create a link for the old-school path just in case
-          mkdir -p /lib64
-          ln -s "$M_LOADER" /lib64/ld-linux-x86-64.so.2 || true
+          # Standard PS2DEV paths
+          echo "PS2DEV=/usr/local/ps2dev" >> $GITHUB_ENV
+          echo "PS2SDK=/usr/local/ps2dev/ps2sdk" >> $GITHUB_ENV
+          echo "/usr/local/ps2dev/bin" >> $GITHUB_PATH
+          echo "/usr/local/ps2dev/ee/bin" >> $GITHUB_PATH
+          echo "/usr/local/ps2dev/iop/bin" >> $GITHUB_PATH
 
       - name: Verify Compiler Access
         run: |
-          # This must work now
-          /usr/local/ps2dev/ee/bin/ee-gcc --version
+          # This should now work natively on Debian
+          ee-gcc --version
 
       - name: Compile
         run: |
-          export PS2DEV=/usr/local/ps2dev
-          export PS2SDK=$PS2DEV/ps2sdk
-          export BIN=$PS2DEV/ee/bin
-          export PATH=$BIN:$PS2DEV/bin:$PATH
-          # Help the binary find its internal libraries
-          export LD_LIBRARY_PATH=$PS2DEV/ee/lib:$LD_LIBRARY_PATH
-          
-          make -f Makefile.libretro \
-            CC=$BIN/ee-gcc \
-            CXX=$BIN/ee-g++ \
-            AR=$BIN/ee-ar
+          # Run the build using our PS2 Makefile
+          make -f Makefile.libretro
 
       - name: Create ISO for PCSX2
         run: |
           mkdir -p iso_root
-          [ -f *.elf ] && cp *.elf iso_root/MAIN.ELF || cp *.a iso_root/ 2>/dev/null || echo "No files"
           
+          # Check for compiled ELF
+          if [ -f *.elf ]; then
+            cp *.elf iso_root/MAIN.ELF
+          else
+            # Fallback to .a library if the ELF link hasn't happened yet
+            cp *.a iso_root/ 2>/dev/null || echo "No files to copy"
+          fi
+          
+          # Create SYSTEM.CNF for PCSX2/PS2 booting
           echo "BOOT2 = cdrom0:\MAIN.ELF;1" > iso_root/SYSTEM.CNF
           echo "VER = 1.00" >> iso_root/SYSTEM.CNF
           echo "VMODE = NTSC" >> iso_root/SYSTEM.CNF
           
-          mkisofs -o fba_cps2.iso -R -J -V "FBA_CPS2" iso_root/
+          genisoimage -o fba_cps2.iso -R -J -V "FBA_CPS2" iso_root/
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
