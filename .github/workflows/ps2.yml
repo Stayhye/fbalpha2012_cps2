@@ -23,13 +23,20 @@ jobs:
             git clone --depth 1 https://github.com/libretro/libretro-common.git libretro-common
           fi
 
-      - name: Compile
-        env:
-          PS2DEV: /usr/local/ps2dev
-          PS2SDK: /usr/local/ps2dev/ps2sdk
-          PATH: /usr/local/ps2dev/bin:/usr/local/ps2dev/ee/bin:/usr/local/ps2dev/iop/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      - name: Locate Toolchain
         run: |
-          make -f Makefile.libretro
+          # This finds the actual path of the compiler
+          find /usr -name "ee-gcc" || echo "Not found in /usr"
+          which ee-gcc || echo "Not in PATH"
+
+      - name: Compile
+        run: |
+          # Use 'command -v' to find the binary path dynamically
+          export EE_BIN=$(dirname $(find /usr -name "ee-gcc" | head -n 1))
+          export PATH=$EE_BIN:$PATH
+          echo "Using compiler at: $EE_BIN"
+          
+          make -f Makefile.libretro CC=ee-gcc CXX=ee-g++ AR=ee-ar
 
       - name: Create ISO
         run: |
