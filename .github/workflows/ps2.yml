@@ -10,8 +10,8 @@ jobs:
       - name: Install System Dependencies
         run: |
           apk update
-          # We need all three of these for maximum glibc compatibility on Alpine
-          apk add --no-cache git make build-base cdrkit gcompat libc6-compat libstdc++
+          # patchelf is the heavy hitter for fixing broken binaries
+          apk add --no-cache git make build-base cdrkit gcompat libc6-compat libstdc++ patchelf
 
       - name: Checkout Base Code
         uses: actions/checkout@v4
@@ -25,19 +25,23 @@ jobs:
             git clone --depth 1 https://github.com/libretro/libretro-common.git libretro-common
           fi
 
-      - name: Alpine Environment Patch
+      - name: Nuclear Alpine Patch
         run: |
-          # Create the expected 64-bit linker path
-          mkdir -p /lib64
-          [ ! -L /lib64/ld-linux-x86-64.so.2 ] && ln -s /lib/ld-linux-x86-64.so.2 /lib64/ld-linux-x86-64.so.2 || true
+          # Find the actual loader on this system
+          M_LOADER=$(find /lib -name "ld-musl-x86_64.so.1" | head -n 1)
           
-          # Debug: Show us what the binary is missing if it still says "not found"
-          echo "Checking binary dependencies..."
-          ldd /usr/local/ps2dev/ee/bin/ee-gcc || true
+          # Force the PS2 binaries to use the Alpine loader
+          # We do this for the compiler, the linker, and the preprocessor
+          patchelf --set-interpreter "$M_LOADER" /usr/local/ps2dev/ee/bin/ee-gcc || true
+          patchelf --set-interpreter "$M_LOADER" /usr/local/ps2dev/ee/libexec/gcc/ee/3.2.3/cc1 || true
+          
+          # Create a link for the old-school path just in case
+          mkdir -p /lib64
+          ln -s "$M_LOADER" /lib64/ld-linux-x86-64.so.2 || true
 
       - name: Verify Compiler Access
         run: |
-          # This must pass for the next step to work
+          # This must work now
           /usr/local/ps2dev/ee/bin/ee-gcc --version
 
       - name: Compile
@@ -46,6 +50,8 @@ jobs:
           export PS2SDK=$PS2DEV/ps2sdk
           export BIN=$PS2DEV/ee/bin
           export PATH=$BIN:$PS2DEV/bin:$PATH
+          # Help the binary find its internal libraries
+          export LD_LIBRARY_PATH=$PS2DEV/ee/lib:$LD_LIBRARY_PATH
           
           make -f Makefile.libretro \
             CC=$BIN/ee-gcc \
@@ -55,12 +61,7 @@ jobs:
       - name: Create ISO for PCSX2
         run: |
           mkdir -p iso_root
-          if [ -f *.elf ]; then
-            cp *.elf iso_root/MAIN.ELF
-          else
-            # If no ELF, we grab the .a library so you have something to download
-            cp *.a iso_root/ 2>/dev/null || echo "No files to copy"
-          fi
+          [ -f *.elf ] && cp *.elf iso_root/MAIN.ELF || cp *.a iso_root/ 2>/dev/null || echo "No files"
           
           echo "BOOT2 = cdrom0:\MAIN.ELF;1" > iso_root/SYSTEM.CNF
           echo "VER = 1.00" >> iso_root/SYSTEM.CNF
