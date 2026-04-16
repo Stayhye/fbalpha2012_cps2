@@ -1,17 +1,14 @@
 # --- PS2 Toolchain Configuration ---
-# These paths are standard for the ps2dev Docker container
-PS2DEV  ?= /usr/local/ps2dev
-PS2SDK  ?= $(PS2DEV)/ps2sdk
-BIN_DIR ?= $(PS2DEV)/ee/bin
+PS2DEV  := /usr/local/ps2dev
+PS2SDK  := $(PS2DEV)/ps2sdk
 
-# Include PS2SDK definitions (provides standard PS2 flags/paths)
--include $(PS2SDK)/Defs.make
+# Defs.make is crucial on the latest image
+include $(PS2SDK)/Defs.make
 
-# --- Compilers ---
-# Using ?= allows the GitHub Action to override these if needed
-CC  := $(BIN_DIR)/ee-gcc
-CXX := $(BIN_DIR)/ee-g++
-AR  := $(BIN_DIR)/ee-ar
+# Compilers - These will be managed by the workflow's PATH
+CC  = ee-gcc
+CXX = ee-g++
+AR  = ee-ar
 
 TARGET := fbalpha2012_cps2_libretro_ps2.a
 
