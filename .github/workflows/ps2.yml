@@ -5,13 +5,12 @@ on: [push, pull_request, workflow_dispatch]
 jobs:
   build:
     runs-on: ubuntu-latest
-    # v1.0 is the standard Debian-based stable image
-    container: ps2dev/ps2dev:v1.0
+    # v1.1.0 is a confirmed Debian-based stable image
+    container: ps2dev/ps2dev:v1.1.0
     steps:
       - name: Install System Dependencies
         run: |
           apt-get update
-          # genisoimage is the Debian equivalent of mkisofs
           apt-get install -y git make build-essential genisoimage
 
       - name: Checkout Base Code
@@ -32,7 +31,7 @@ jobs:
             git clone --depth 1 https://github.com/libretro/libretro-common.git libretro-common
           fi
 
-      - name: Set Environment
+      - name: Set Environment and Verify
         run: |
           # Standard PS2DEV paths
           echo "PS2DEV=/usr/local/ps2dev" >> $GITHUB_ENV
@@ -40,11 +39,14 @@ jobs:
           echo "/usr/local/ps2dev/bin" >> $GITHUB_PATH
           echo "/usr/local/ps2dev/ee/bin" >> $GITHUB_PATH
           echo "/usr/local/ps2dev/iop/bin" >> $GITHUB_PATH
+          
+          # Debug: List the directory to make 100% sure it exists
+          ls /usr/local/ps2dev/ee/bin/ee-gcc || echo "Compiler still not at standard path"
 
       - name: Verify Compiler Access
         run: |
-          # This should now work natively on Debian
-          ee-gcc --version
+          # This should work natively on Debian/v1.1.0
+          /usr/local/ps2dev/ee/bin/ee-gcc --version
 
       - name: Compile
         run: |
