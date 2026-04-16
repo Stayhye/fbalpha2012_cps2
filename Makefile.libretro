@@ -2,10 +2,10 @@
 PS2DEV  ?= /usr/local/ps2dev
 PS2SDK  ?= $(PS2DEV)/ps2sdk
 
-# Defs.make defines the standard PS2 toolchain (ee-gcc, etc.)
+# Include the standard SDK definitions
 -include $(PS2SDK)/Defs.make
 
-# Fallbacks if Defs.make is missing
+# Set compilers (overridable by environment)
 CC  ?= ee-gcc
 CXX ?= ee-g++
 AR  ?= ee-ar
@@ -19,7 +19,7 @@ FBA_BURN_DRIVERS_DIR := $(CORE_DIR)/src/burn/drv/capcom
 # C Sources
 SOURCES_C := $(CORE_DIR)/libretro-common/file/retro_dirent.c
 
-# C++ Sources
+# C++ Sources (Drivers and Core)
 SOURCES_CXX := $(CORE_DIR)/src/burner/libretro/libretro.cpp \
                $(FBA_BURN_DRIVERS_DIR)/cps.cpp \
                $(FBA_BURN_DRIVERS_DIR)/cps2_run.cpp \
@@ -50,7 +50,7 @@ INCFLAGS := -I. \
             -I$(PS2SDK)/ee/include \
             -I$(PS2SDK)/common/include
 
-# --- Object File Generation ---
+# Convert source lists to object lists
 OBJECTS := $(SOURCES_C:.c=.o) $(SOURCES_CXX:.cpp=.o)
 
 all: $(TARGET)
@@ -58,12 +58,12 @@ all: $(TARGET)
 $(TARGET): $(OBJECTS)
 	$(AR) rcs $@ $(OBJECTS)
 
-# Rule for C objects
+# Rule for compiling C files
 %.o: %.c
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) $(INCFLAGS) -c -o $@ $<
 
-# Rule for C++ objects
+# Rule for compiling C++ files
 %.o: %.cpp
 	@mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS) $(INCFLAGS) -c -o $@ $<
