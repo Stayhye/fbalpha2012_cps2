@@ -15,7 +15,7 @@ jobs:
       - name: Checkout Base Code
         uses: actions/checkout@v4
 
-      - name: Fix Git and Manually Clone Submodules
+      - name: Fix Git and Submodules
         run: |
           git config --global --add safe.directory /__w/fbalpha2012_cps2/fbalpha2012_cps2
           if [ ! -f "libretro-common/file/retro_dirent.c" ]; then
@@ -23,31 +23,32 @@ jobs:
             git clone --depth 1 https://github.com/libretro/libretro-common.git libretro-common
           fi
 
+      - name: Set PS2 Paths for all steps
+        run: |
+          # This writes the paths to a special GitHub file that persists across steps
+          echo "/usr/local/ps2dev/bin" >> $GITHUB_PATH
+          echo "/usr/local/ps2dev/ee/bin" >> $GITHUB_PATH
+          echo "/usr/local/ps2dev/iop/bin" >> $GITHUB_PATH
+          echo "PS2DEV=/usr/local/ps2dev" >> $GITHUB_ENV
+          echo "PS2SDK=/usr/local/ps2dev/ps2sdk" >> $GITHUB_ENV
+
       - name: Compile
         run: |
-          # Define the PS2 toolchain locations
-          export PS2DEV=/usr/local/ps2dev
-          export PS2SDK=$PS2DEV/ps2sdk
-          
-          # Add the toolchain binaries to the PATH so 'ee-gcc' is recognized
-          export PATH=$PS2DEV/bin:$PS2DEV/ee/bin:$PS2DEV/iop/bin:$PATH
-          
+          # Now ee-gcc will be found automatically
           make -f Makefile.libretro
 
-      - name: Prepare ISO Structure
+      - name: Create ISO for PCSX2
         run: |
           mkdir -p iso_root
-          # Note: If your Makefile currently only makes a .a file, 
-          # you will need to link it into an .elf to see it here.
-          cp *.elf iso_root/ || echo "No ELF found yet"
+          # If your build produces an ELF, copy it. 
+          # Note: A .a file alone won't boot; it needs a frontend ELF.
+          [ -f *.elf ] && cp *.elf iso_root/MAIN.ELF || echo "No ELF to copy"
           
-          # Create a basic boot config for PCSX2
+          # Basic boot configuration
           echo "BOOT2 = cdrom0:\MAIN.ELF;1" > iso_root/SYSTEM.CNF
           echo "VER = 1.00" >> iso_root/SYSTEM.CNF
           echo "VMODE = NTSC" >> iso_root/SYSTEM.CNF
-
-      - name: Create ISO
-        run: |
+          
           mkisofs -o fba_cps2.iso -R -J -V "FBA_CPS2" iso_root/
 
       - name: Upload Artifacts
