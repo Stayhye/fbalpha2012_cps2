@@ -1,25 +1,20 @@
 # --- PS2 Toolchain Configuration ---
-ifeq ($(PS2DEV),)
-  PS2DEV := /usr/local/ps2dev
-endif
-PS2SDK := $(PS2DEV)/ps2sdk
+PS2DEV  := /usr/local/ps2dev
+PS2SDK  := $(PS2DEV)/ps2sdk
+BIN_DIR := $(PS2DEV)/ee/bin
 
 include $(PS2SDK)/Defs.make
 
-TARGET := fbalpha2012_cps2_libretro_ps2.a
+# --- Compilers (Hardcoded Absolute Paths) ---
+CC  = $(BIN_DIR)/ee-gcc
+CXX = $(BIN_DIR)/ee-g++
+AR  = $(BIN_DIR)/ee-ar
 
-# --- Compilers ---
-CC  = ee-gcc
-CXX = ee-g++
-AR  = ee-ar
+TARGET := fbalpha2012_cps2_libretro_ps2.a
 
 # --- Core Source Files ---
 CORE_DIR := .
-
-# Ensure these paths match your actual folder structure
 SOURCES_C += $(CORE_DIR)/libretro-common/file/retro_dirent.c
-
-# If the error persists, it's likely a C++ file masquerading as C
 SOURCES_CXX += $(CORE_DIR)/src/burner/libretro/libretro.cpp \
                $(CORE_DIR)/src/burn/drv/capcom/cps.cpp \
                $(CORE_DIR)/src/burn/drv/capcom/cps2_run.cpp \
@@ -32,37 +27,18 @@ SOURCES_CXX += $(CORE_DIR)/src/burner/libretro/libretro.cpp \
                $(CORE_DIR)/src/burn/drv/capcom/cps_rw.cpp \
                $(CORE_DIR)/src/burn/drv/capcom/cps_scr.cpp
 
-# --- Updated Build Rules ---
-# This version creates the directory before compiling to prevent "No such file" errors
-%.o: %.c
-	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) $(INCFLAGS) -c -o $@ $<
-
-%.o: %.cpp
-	@mkdir -p $(dir $@)
-	$(CXX) $(CXXFLAGS) $(INCFLAGS) -c -o $@ $<
-
 # --- Compilation Flags ---
-# -G0 is mandatory for PS2 to avoid "GP relative" linking errors
 DEFINES := -D_EE -D_PS2 -DPS2 -D__PS2__ -D__LIBRETRO__ -DLSB_FIRST -DSTATIC_LINKING=1 -DWANT_CPS2
 COMMON_FLAGS := -O3 -G0 -fno-strict-aliasing -fno-exceptions -Wall $(DEFINES)
-
 CFLAGS   += $(COMMON_FLAGS) -std=gnu99
 CXXFLAGS += $(COMMON_FLAGS) -fno-rtti
 
 # --- Include Paths ---
-INCFLAGS += -I. \
-            -I$(CORE_DIR)/src/burn \
-            -I$(CORE_DIR)/src/burn/devices \
-            -I$(CORE_DIR)/src/burn/drv/capcom \
-            -I$(CORE_DIR)/src/burner \
-            -I$(CORE_DIR)/src/burner/libretro \
-            -I$(CORE_DIR)/libretro-common/include \
-            -I$(PS2SDK)/ee/include \
-            -I$(PS2SDK)/common/include
+INCFLAGS += -I. -I$(CORE_DIR)/src/burn -I$(CORE_DIR)/src/burn/devices \
+            -I$(CORE_DIR)/src/burn/drv/capcom -I$(CORE_DIR)/src/burner \
+            -I$(CORE_DIR)/src/burner/libretro -I$(CORE_DIR)/libretro-common/include \
+            -I$(PS2SDK)/ee/include -I$(PS2SDK)/common/include
 
-# --- Object Handling ---
-# This converts the source list into an object list while preserving folder structure
 OBJECTS := $(SOURCES_C:.c=.o) $(SOURCES_CXX:.cpp=.o)
 
 all: $(TARGET)
@@ -70,22 +46,15 @@ all: $(TARGET)
 $(TARGET): $(OBJECTS)
 	$(AR) rcs $@ $(OBJECTS)
 
-# Rule for C files
-# The @mkdir -p ensures that subfolders like 'libretro-common/file/' 
-# exist before the compiler tries to write the .o file there.
 %.o: %.c
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) $(INCFLAGS) -c -o $@ $<
 
-# Rule for C++ files
 %.o: %.cpp
 	@mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS) $(INCFLAGS) -c -o $@ $<
 
 clean:
 	rm -f $(OBJECTS) $(TARGET)
-	rm -rf libretro-common/file/*.o
-	rm -rf src/burner/libretro/*.o
-	rm -rf $(FBA_BURN_DRIVERS_DIR)/*.o
 
 .PHONY: all clean
