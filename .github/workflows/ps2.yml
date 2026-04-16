@@ -5,12 +5,13 @@ on: [push, pull_request, workflow_dispatch]
 jobs:
   build:
     runs-on: ubuntu-latest
-    # v1.1.0 is a confirmed Debian-based stable image
-    container: ps2dev/ps2dev:v1.1.0
+    # Using a specific date-coded tag that is confirmed Debian-based
+    container: ps2dev/ps2dev:2023-01-24
     steps:
       - name: Install System Dependencies
         run: |
           apt-get update
+          # genisoimage is the stable Debian tool for making ISOs
           apt-get install -y git make build-essential genisoimage
 
       - name: Checkout Base Code
@@ -18,54 +19,48 @@ jobs:
 
       - name: Fix Git and Sync Submodules
         run: |
-          # Fix ownership issues for the container environment
+          # Fix ownership issues inside the Docker container
           git config --global --add safe.directory /__w/fbalpha2012_cps2/fbalpha2012_cps2
           
-          # Initialize submodules
+          # Try standard submodule sync
           git submodule update --init --recursive
           
-          # Emergency manual clone if the submodule check fails
+          # Manual fallback for libretro-common if needed
           if [ ! -f "libretro-common/file/retro_dirent.c" ]; then
-            echo "Submodules failed to sync. Manually cloning libretro-common..."
+            echo "Submodules failed. Manually cloning libretro-common..."
             rm -rf libretro-common
             git clone --depth 1 https://github.com/libretro/libretro-common.git libretro-common
           fi
 
-      - name: Set Environment and Verify
+      - name: Set Environment
         run: |
-          # Standard PS2DEV paths
           echo "PS2DEV=/usr/local/ps2dev" >> $GITHUB_ENV
           echo "PS2SDK=/usr/local/ps2dev/ps2sdk" >> $GITHUB_ENV
           echo "/usr/local/ps2dev/bin" >> $GITHUB_PATH
           echo "/usr/local/ps2dev/ee/bin" >> $GITHUB_PATH
           echo "/usr/local/ps2dev/iop/bin" >> $GITHUB_PATH
-          
-          # Debug: List the directory to make 100% sure it exists
-          ls /usr/local/ps2dev/ee/bin/ee-gcc || echo "Compiler still not at standard path"
 
       - name: Verify Compiler Access
         run: |
-          # This should work natively on Debian/v1.1.0
-          /usr/local/ps2dev/ee/bin/ee-gcc --version
+          # This should return a version string without 'not found' errors
+          ee-gcc --version
 
       - name: Compile
         run: |
-          # Run the build using our PS2 Makefile
+          # Build the .a library using your Makefile
           make -f Makefile.libretro
 
       - name: Create ISO for PCSX2
         run: |
           mkdir -p iso_root
-          
-          # Check for compiled ELF
+          # Copy the .a library or .elf if generated
           if [ -f *.elf ]; then
             cp *.elf iso_root/MAIN.ELF
           else
-            # Fallback to .a library if the ELF link hasn't happened yet
-            cp *.a iso_root/ 2>/dev/null || echo "No files to copy"
+            cp *.a iso_root/ 2>/dev/null || echo "No library files found"
           fi
           
-          # Create SYSTEM.CNF for PCSX2/PS2 booting
+          # Boot configuration for PS2
           echo "BOOT2 = cdrom0:\MAIN.ELF;1" > iso_root/SYSTEM.CNF
           echo "VER = 1.00" >> iso_root/SYSTEM.CNF
           echo "VMODE = NTSC" >> iso_root/SYSTEM.CNF
