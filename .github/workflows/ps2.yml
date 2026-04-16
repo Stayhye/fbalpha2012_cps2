@@ -10,6 +10,7 @@ jobs:
       - name: Install System Dependencies
         run: |
           apk update
+          # Essential for glibc binaries (the compilers) to run on Alpine
           apk add --no-cache git make build-base cdrkit gcompat libc6-compat libstdc++
 
       - name: Checkout Base Code
@@ -24,54 +25,34 @@ jobs:
             git clone --depth 1 https://github.com/libretro/libretro-common.git libretro-common
           fi
 
-      - name: Deep Search and Patch
+      - name: Initialize PS2DEV Environment
         run: |
-          # 1. Create the glibc linker symlink for Alpine (Essential for glibc binaries)
+          # The latest image uses /src/ps2dev-env to set up paths
+          # We create the glibc linker link first
           mkdir -p /lib64
           ln -sf /lib/ld-linux-x86-64.so.2 /lib64/ld-linux-x86-64.so.2 || true
           
-          # 2. Deep search the entire root for the compiler
-          echo "Searching for ee-gcc..."
-          EE_PATH=$(find / -name "ee-gcc" -type f 2>/dev/null | head -n 1)
-          
-          if [ -z "$EE_PATH" ]; then
-            echo "CRITICAL: ee-gcc not found anywhere in the container!"
-            # List root directories to help us debug manually if this fails
-            ls -R / | grep "bin" || true
-            exit 1
-          fi
-          
-          EE_BIN_DIR=$(dirname "$EE_PATH")
-          echo "Found compiler at: $EE_PATH"
-          
-          # 3. Apply execution permissions
-          chmod +x "$EE_BIN_DIR"/ee-* || true
-          
-          # 4. Export paths for the next steps
-          echo "EE_BIN_DIR=$EE_BIN_DIR" >> $GITHUB_ENV
-          echo "$EE_BIN_DIR" >> $GITHUB_PATH
-          
-          # 5. Find PS2SDK path
-          SDK_PATH=$(find / -name "ps2sdk" -type d 2>/dev/null | head -n 1)
-          echo "PS2SDK=$SDK_PATH" >> $GITHUB_ENV
+          # Force set the paths that the PS2 toolchain requires
+          echo "PS2DEV=/usr/local/ps2dev" >> $GITHUB_ENV
+          echo "PS2SDK=/usr/local/ps2dev/ps2sdk" >> $GITHUB_ENV
+          echo "GSKIT=/usr/local/ps2dev/gsKit" >> $GITHUB_ENV
+          echo "/usr/local/ps2dev/bin" >> $GITHUB_PATH
+          echo "/usr/local/ps2dev/ee/bin" >> $GITHUB_PATH
+          echo "/usr/local/ps2dev/iop/bin" >> $GITHUB_PATH
+          echo "/usr/local/ps2dev/dvp/bin" >> $GITHUB_PATH
 
       - name: Compile
         run: |
-          # Use the discovered paths
+          # Use the environment variables we just set
           make -f Makefile.libretro \
-            CC="$EE_BIN_DIR/ee-gcc" \
-            CXX="$EE_BIN_DIR/ee-g++" \
-            AR="$EE_BIN_DIR/ee-ar" \
-            PS2SDK_PATH="$PS2SDK"
+            CC=ee-gcc \
+            CXX=ee-g++ \
+            AR=ee-ar
 
       - name: Create ISO for PCSX2
         run: |
           mkdir -p iso_root
-          if [ -f *.elf ]; then
-            cp *.elf iso_root/MAIN.ELF
-          else
-            cp *.a iso_root/ 2>/dev/null || echo "No library files"
-          fi
+          [ -f *.elf ] && cp *.elf iso_root/MAIN.ELF || cp *.a iso_root/ 2>/dev/null || echo "No files"
           
           echo "BOOT2 = cdrom0:\MAIN.ELF;1" > iso_root/SYSTEM.CNF
           echo "VER = 1.00" >> iso_root/SYSTEM.CNF
