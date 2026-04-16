@@ -10,7 +10,7 @@ jobs:
       - name: Install System Dependencies
         run: |
           apk update
-          apk add --no-cache git make build-base cdrkit # cdrkit provides mkisofs
+          apk add --no-cache git make build-base cdrkit
 
       - name: Checkout Base Code
         uses: actions/checkout@v4
@@ -18,7 +18,6 @@ jobs:
       - name: Fix Git and Manually Clone Submodules
         run: |
           git config --global --add safe.directory /__w/fbalpha2012_cps2/fbalpha2012_cps2
-          # Manual clone if submodule sync fails
           if [ ! -f "libretro-common/file/retro_dirent.c" ]; then
             rm -rf libretro-common
             git clone --depth 1 https://github.com/libretro/libretro-common.git libretro-common
@@ -26,31 +25,36 @@ jobs:
 
       - name: Compile
         run: |
+          # Define the PS2 toolchain locations
           export PS2DEV=/usr/local/ps2dev
           export PS2SDK=$PS2DEV/ps2sdk
+          
+          # Add the toolchain binaries to the PATH so 'ee-gcc' is recognized
           export PATH=$PS2DEV/bin:$PS2DEV/ee/bin:$PS2DEV/iop/bin:$PATH
+          
           make -f Makefile.libretro
 
       - name: Prepare ISO Structure
         run: |
           mkdir -p iso_root
-          # Copy your compiled ELF to the ISO root
-          # If your Makefile only outputs a .a, you must link it to an ELF first.
-          # Assuming you have a fba_cps2.elf:
-          cp *.elf iso_root/ || echo "No ELF found to copy!"
+          # Note: If your Makefile currently only makes a .a file, 
+          # you will need to link it into an .elf to see it here.
+          cp *.elf iso_root/ || echo "No ELF found yet"
           
-          # Create the SYSTEM.CNF so the PS2 knows what to boot
-          echo "BOOT2 = cdrom0:\FBA_CPS2.ELF;1" > iso_root/SYSTEM.CNF
+          # Create a basic boot config for PCSX2
+          echo "BOOT2 = cdrom0:\MAIN.ELF;1" > iso_root/SYSTEM.CNF
           echo "VER = 1.00" >> iso_root/SYSTEM.CNF
           echo "VMODE = NTSC" >> iso_root/SYSTEM.CNF
 
       - name: Create ISO
         run: |
-          # Create the bootable ISO image
           mkisofs -o fba_cps2.iso -R -J -V "FBA_CPS2" iso_root/
 
-      - name: Upload ISO Artifact
+      - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: PS2-Game-ISO
-          path: fba_cps2.iso
+          name: PS2-Build-Output
+          path: |
+            *.a
+            *.elf
+            *.iso
