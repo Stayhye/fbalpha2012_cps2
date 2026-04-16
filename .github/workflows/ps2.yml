@@ -10,8 +10,8 @@ jobs:
       - name: Install System Dependencies
         run: |
           apk update
-          # gcompat and libstdc++ are the base, but we need the symlink next
-          apk add --no-cache git make build-base cdrkit gcompat libstdc++
+          # We need all three of these for maximum glibc compatibility on Alpine
+          apk add --no-cache git make build-base cdrkit gcompat libc6-compat libstdc++
 
       - name: Checkout Base Code
         uses: actions/checkout@v4
@@ -25,15 +25,19 @@ jobs:
             git clone --depth 1 https://github.com/libretro/libretro-common.git libretro-common
           fi
 
-      - name: Patch Alpine Loader
+      - name: Alpine Environment Patch
         run: |
-          # This creates the "missing" link that causes the 'not found' error
+          # Create the expected 64-bit linker path
           mkdir -p /lib64
-          ln -s /lib/libc.musl-x86_64.so.1 /lib64/ld-linux-x86-64.so.2 || true
+          [ ! -L /lib64/ld-linux-x86-64.so.2 ] && ln -s /lib/ld-linux-x86-64.so.2 /lib64/ld-linux-x86-64.so.2 || true
           
+          # Debug: Show us what the binary is missing if it still says "not found"
+          echo "Checking binary dependencies..."
+          ldd /usr/local/ps2dev/ee/bin/ee-gcc || true
+
       - name: Verify Compiler Access
         run: |
-          # Now this should return the version instead of 'not found'
+          # This must pass for the next step to work
           /usr/local/ps2dev/ee/bin/ee-gcc --version
 
       - name: Compile
@@ -54,7 +58,8 @@ jobs:
           if [ -f *.elf ]; then
             cp *.elf iso_root/MAIN.ELF
           else
-            cp *.a iso_root/ 2>/dev/null || echo "No library found"
+            # If no ELF, we grab the .a library so you have something to download
+            cp *.a iso_root/ 2>/dev/null || echo "No files to copy"
           fi
           
           echo "BOOT2 = cdrom0:\MAIN.ELF;1" > iso_root/SYSTEM.CNF
