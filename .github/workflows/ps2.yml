@@ -10,7 +10,7 @@ jobs:
       - name: Install System Dependencies
         run: |
           apk update
-          # gcompat is the primary tool for running non-Alpine binaries on Alpine
+          # We need these three specifically for glibc binaries to run on Alpine
           apk add --no-cache git make build-base cdrkit gcompat libc6-compat libstdc++
 
       - name: Checkout Base Code
@@ -25,11 +25,17 @@ jobs:
             git clone --depth 1 https://github.com/libretro/libretro-common.git libretro-common
           fi
 
-      - name: Force Loader Compatibility
+      - name: Force Alpine Compatibility
         run: |
-          # This creates the exact directory and link the PS2 compiler expects
+          # Create the expected linker path for 64-bit binaries
           mkdir -p /lib64
           ln -sf /lib/ld-linux-x86-64.so.2 /lib64/ld-linux-x86-64.so.2 || true
+          
+          # Ensure the compiler binaries have execution permissions
+          chmod +x /usr/local/ps2dev/ee/bin/ee-* 2>/dev/null || true
+          
+          # Force the system to look in the PS2DEV lib folder
+          echo "LD_LIBRARY_PATH=/usr/local/ps2dev/ee/lib:$LD_LIBRARY_PATH" >> $GITHUB_ENV
 
       - name: Compile
         run: |
@@ -37,16 +43,21 @@ jobs:
           export PS2SDK=$PS2DEV/ps2sdk
           export BIN=$PS2DEV/ee/bin
           
-          # We pass the absolute path of the compilers directly
+          # Pass absolute paths and force standard shell
           make -f Makefile.libretro \
             CC=$BIN/ee-gcc \
             CXX=$BIN/ee-g++ \
-            AR=$BIN/ee-ar
+            AR=$BIN/ee-ar \
+            SHELL=/bin/sh
 
       - name: Create ISO for PCSX2
         run: |
           mkdir -p iso_root
-          [ -f *.elf ] && cp *.elf iso_root/MAIN.ELF || cp *.a iso_root/ 2>/dev/null || echo "No files"
+          if [ -f *.elf ]; then
+            cp *.elf iso_root/MAIN.ELF
+          else
+            cp *.a iso_root/ 2>/dev/null || echo "No library files found"
+          fi
           
           echo "BOOT2 = cdrom0:\MAIN.ELF;1" > iso_root/SYSTEM.CNF
           echo "VER = 1.00" >> iso_root/SYSTEM.CNF
