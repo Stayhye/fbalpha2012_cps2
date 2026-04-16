@@ -1,60 +1,82 @@
 # --- PS2 Toolchain Configuration ---
-PS2DEV  := /usr/local/ps2dev
-PS2SDK  := $(PS2DEV)/ps2sdk
-BIN_DIR := $(PS2DEV)/ee/bin
+# These paths are standard for the ps2dev Docker container
+PS2DEV  ?= /usr/local/ps2dev
+PS2SDK  ?= $(PS2DEV)/ps2sdk
+BIN_DIR ?= $(PS2DEV)/ee/bin
 
-include $(PS2SDK)/Defs.make
+# Include PS2SDK definitions (provides standard PS2 flags/paths)
+-include $(PS2SDK)/Defs.make
 
-# --- Compilers (Hardcoded Absolute Paths) ---
-CC  = $(BIN_DIR)/ee-gcc
-CXX = $(BIN_DIR)/ee-g++
-AR  = $(BIN_DIR)/ee-ar
+# --- Compilers ---
+# Using ?= allows the GitHub Action to override these if needed
+CC  := $(BIN_DIR)/ee-gcc
+CXX := $(BIN_DIR)/ee-g++
+AR  := $(BIN_DIR)/ee-ar
 
 TARGET := fbalpha2012_cps2_libretro_ps2.a
 
 # --- Core Source Files ---
 CORE_DIR := .
-SOURCES_C += $(CORE_DIR)/libretro-common/file/retro_dirent.c
-SOURCES_CXX += $(CORE_DIR)/src/burner/libretro/libretro.cpp \
-               $(CORE_DIR)/src/burn/drv/capcom/cps.cpp \
-               $(CORE_DIR)/src/burn/drv/capcom/cps2_run.cpp \
-               $(CORE_DIR)/src/burn/drv/capcom/cps_config.cpp \
-               $(CORE_DIR)/src/burn/drv/capcom/cps_draw.cpp \
-               $(CORE_DIR)/src/burn/drv/capcom/cps_mem.cpp \
-               $(CORE_DIR)/src/burn/drv/capcom/cps_obj.cpp \
-               $(CORE_DIR)/src/burn/drv/capcom/cps_pal.cpp \
-               $(CORE_DIR)/src/burn/drv/capcom/cps_run.cpp \
-               $(CORE_DIR)/src/burn/drv/capcom/cps_rw.cpp \
-               $(CORE_DIR)/src/burn/drv/capcom/cps_scr.cpp
+BURN_DIR := $(CORE_DIR)/src/burn
+FBA_BURN_DRIVERS_DIR := $(BURN_DIR)/drv/capcom
+
+# C Sources (standard libretro files)
+SOURCES_C := $(CORE_DIR)/libretro-common/file/retro_dirent.c
+
+# C++ Sources (FBA Core and Drivers)
+SOURCES_CXX := $(CORE_DIR)/src/burner/libretro/libretro.cpp \
+               $(FBA_BURN_DRIVERS_DIR)/cps.cpp \
+               $(FBA_BURN_DRIVERS_DIR)/cps2_run.cpp \
+               $(FBA_BURN_DRIVERS_DIR)/cps_config.cpp \
+               $(FBA_BURN_DRIVERS_DIR)/cps_draw.cpp \
+               $(FBA_BURN_DRIVERS_DIR)/cps_mem.cpp \
+               $(FBA_BURN_DRIVERS_DIR)/cps_obj.cpp \
+               $(FBA_BURN_DRIVERS_DIR)/cps_pal.cpp \
+               $(FBA_BURN_DRIVERS_DIR)/cps_run.cpp \
+               $(FBA_BURN_DRIVERS_DIR)/cps_rw.cpp \
+               $(FBA_BURN_DRIVERS_DIR)/cps_scr.cpp
 
 # --- Compilation Flags ---
+# -G0 is mandatory for PS2 to prevent 'GP relative' linking errors
 DEFINES := -D_EE -D_PS2 -DPS2 -D__PS2__ -D__LIBRETRO__ -DLSB_FIRST -DSTATIC_LINKING=1 -DWANT_CPS2
 COMMON_FLAGS := -O3 -G0 -fno-strict-aliasing -fno-exceptions -Wall $(DEFINES)
+
 CFLAGS   += $(COMMON_FLAGS) -std=gnu99
 CXXFLAGS += $(COMMON_FLAGS) -fno-rtti
 
 # --- Include Paths ---
-INCFLAGS += -I. -I$(CORE_DIR)/src/burn -I$(CORE_DIR)/src/burn/devices \
-            -I$(CORE_DIR)/src/burn/drv/capcom -I$(CORE_DIR)/src/burner \
-            -I$(CORE_DIR)/src/burner/libretro -I$(CORE_DIR)/libretro-common/include \
-            -I$(PS2SDK)/ee/include -I$(PS2SDK)/common/include
+INCFLAGS += -I. \
+            -I$(CORE_DIR)/src/burn \
+            -I$(CORE_DIR)/src/burn/devices \
+            -I$(CORE_DIR)/src/burn/drv/capcom \
+            -I$(CORE_DIR)/src/burner \
+            -I$(CORE_DIR)/src/burner/libretro \
+            -I$(CORE_DIR)/libretro-common/include \
+            -I$(PS2SDK)/ee/include \
+            -I$(PS2SDK)/common/include
 
+# --- Object Handling ---
+# Converts .c and .cpp lists into .o object lists
 OBJECTS := $(SOURCES_C:.c=.o) $(SOURCES_CXX:.cpp=.o)
 
+# --- Build Rules ---
 all: $(TARGET)
 
 $(TARGET): $(OBJECTS)
 	$(AR) rcs $@ $(OBJECTS)
 
+# Rule for C files (with automatic directory creation)
 %.o: %.c
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) $(INCFLAGS) -c -o $@ $<
 
+# Rule for C++ files (with automatic directory creation)
 %.o: %.cpp
 	@mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS) $(INCFLAGS) -c -o $@ $<
 
 clean:
 	rm -f $(OBJECTS) $(TARGET)
+	@echo "Cleaned up object files and library."
 
 .PHONY: all clean
