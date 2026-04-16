@@ -1,14 +1,15 @@
 # --- PS2 Toolchain Configuration ---
-PS2DEV  := /usr/local/ps2dev
-PS2SDK  := $(PS2DEV)/ps2sdk
+# These will be overridden by the GitHub Action command line
+PS2DEV  ?= /usr/local/ps2dev
+PS2SDK  ?= $(PS2DEV)/ps2sdk
 
-# Defs.make is crucial on the latest image
-include $(PS2SDK)/Defs.make
+# Defs.make provides PS2-specific environment setup
+-include $(PS2SDK)/Defs.make
 
-# Compilers - These will be managed by the workflow's PATH
-CC  = ee-gcc
-CXX = ee-g++
-AR  = ee-ar
+# Fallback names if not provided by Defs.make or Command Line
+CC  ?= ee-gcc
+CXX ?= ee-g++
+AR  ?= ee-ar
 
 TARGET := fbalpha2012_cps2_libretro_ps2.a
 
@@ -17,10 +18,7 @@ CORE_DIR := .
 BURN_DIR := $(CORE_DIR)/src/burn
 FBA_BURN_DRIVERS_DIR := $(BURN_DIR)/drv/capcom
 
-# C Sources (standard libretro files)
-SOURCES_C := $(CORE_DIR)/libretro-common/file/retro_dirent.c
-
-# C++ Sources (FBA Core and Drivers)
+SOURCES_C   := $(CORE_DIR)/libretro-common/file/retro_dirent.c
 SOURCES_CXX := $(CORE_DIR)/src/burner/libretro/libretro.cpp \
                $(FBA_BURN_DRIVERS_DIR)/cps.cpp \
                $(FBA_BURN_DRIVERS_DIR)/cps2_run.cpp \
@@ -34,7 +32,6 @@ SOURCES_CXX := $(CORE_DIR)/src/burner/libretro/libretro.cpp \
                $(FBA_BURN_DRIVERS_DIR)/cps_scr.cpp
 
 # --- Compilation Flags ---
-# -G0 is mandatory for PS2 to prevent 'GP relative' linking errors
 DEFINES := -D_EE -D_PS2 -DPS2 -D__PS2__ -D__LIBRETRO__ -DLSB_FIRST -DSTATIC_LINKING=1 -DWANT_CPS2
 COMMON_FLAGS := -O3 -G0 -fno-strict-aliasing -fno-exceptions -Wall $(DEFINES)
 
@@ -52,28 +49,22 @@ INCFLAGS += -I. \
             -I$(PS2SDK)/ee/include \
             -I$(PS2SDK)/common/include
 
-# --- Object Handling ---
-# Converts .c and .cpp lists into .o object lists
 OBJECTS := $(SOURCES_C:.c=.o) $(SOURCES_CXX:.cpp=.o)
 
-# --- Build Rules ---
 all: $(TARGET)
 
 $(TARGET): $(OBJECTS)
 	$(AR) rcs $@ $(OBJECTS)
 
-# Rule for C files (with automatic directory creation)
 %.o: %.c
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) $(INCFLAGS) -c -o $@ $<
 
-# Rule for C++ files (with automatic directory creation)
 %.o: %.cpp
 	@mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS) $(INCFLAGS) -c -o $@ $<
 
 clean:
 	rm -f $(OBJECTS) $(TARGET)
-	@echo "Cleaned up object files and library."
 
 .PHONY: all clean
