@@ -10,12 +10,13 @@ jobs:
       - name: Install System Dependencies
         run: |
           apk update
-          apk add --no-cache git make build-base cdrkit
+          # libc6-compat is the secret sauce for running glibc binaries on Alpine
+          apk add --no-cache git make build-base cdrkit libc6-compat libstdc++
 
       - name: Checkout Base Code
         uses: actions/checkout@v4
 
-      - name: Fix Git and Sync Submodules
+      - name: Fix Git and Submodules
         run: |
           git config --global --add safe.directory /__w/fbalpha2012_cps2/fbalpha2012_cps2
           git submodule update --init --recursive
@@ -24,35 +25,23 @@ jobs:
             git clone --depth 1 https://github.com/libretro/libretro-common.git libretro-common
           fi
 
-      - name: Force Toolchain Paths
+      - name: Set Environment Paths
         run: |
-          # The official ps2dev location
-          export PS2DEV=/usr/local/ps2dev
-          export PS2SDK=$PS2DEV/ps2sdk
-          
-          # Manually verify if the directory exists
-          if [ -d "$PS2DEV/ee/bin" ]; then
-             echo "Toolchain found in standard location!"
-             echo "$PS2DEV/bin" >> $GITHUB_PATH
-             echo "$PS2DEV/ee/bin" >> $GITHUB_PATH
-             echo "$PS2DEV/iop/bin" >> $GITHUB_PATH
-             echo "PS2DEV=$PS2DEV" >> $GITHUB_ENV
-             echo "PS2SDK=$PS2SDK" >> $GITHUB_ENV
-          else
-             echo "DEBUG: /usr/local/ps2dev not found. Listing /usr/local:"
-             ls -R /usr/local
-             exit 1
-          fi
+          echo "PS2DEV=/usr/local/ps2dev" >> $GITHUB_ENV
+          echo "PS2SDK=/usr/local/ps2dev/ps2sdk" >> $GITHUB_ENV
+          echo "/usr/local/ps2dev/bin" >> $GITHUB_PATH
+          echo "/usr/local/ps2dev/ee/bin" >> $GITHUB_PATH
+          echo "/usr/local/ps2dev/iop/bin" >> $GITHUB_PATH
 
       - name: Compile
         run: |
-          # We use absolute paths as a final safety measure
-          make -f Makefile.libretro \
-            CC=/usr/local/ps2dev/ee/bin/ee-gcc \
-            CXX=/usr/local/ps2dev/ee/bin/ee-g++ \
-            AR=/usr/local/ps2dev/ee/bin/ee-ar
+          # Use sed to ensure the Makefile isn't overriding our CC with a bad path
+          sed -i 's|^CC.*=.*|CC = ee-gcc|g' Makefile.libretro
+          sed -i 's|^CXX.*=.*|CXX = ee-g++|g' Makefile.libretro
+          
+          make -f Makefile.libretro
 
-      - name: Create ISO for PCSX2
+      - name: Create ISO
         run: |
           mkdir -p iso_root
           [ -f *.elf ] && cp *.elf iso_root/MAIN.ELF || echo "No ELF found"
