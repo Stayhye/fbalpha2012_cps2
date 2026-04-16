@@ -23,28 +23,20 @@ jobs:
             git clone --depth 1 https://github.com/libretro/libretro-common.git libretro-common
           fi
 
-      - name: Set PS2 Paths for all steps
-        run: |
-          # This writes the paths to a special GitHub file that persists across steps
-          echo "/usr/local/ps2dev/bin" >> $GITHUB_PATH
-          echo "/usr/local/ps2dev/ee/bin" >> $GITHUB_PATH
-          echo "/usr/local/ps2dev/iop/bin" >> $GITHUB_PATH
-          echo "PS2DEV=/usr/local/ps2dev" >> $GITHUB_ENV
-          echo "PS2SDK=/usr/local/ps2dev/ps2sdk" >> $GITHUB_ENV
-
       - name: Compile
+        env:
+          PS2DEV: /usr/local/ps2dev
+          PS2SDK: /usr/local/ps2dev/ps2sdk
+          PATH: /usr/local/ps2dev/bin:/usr/local/ps2dev/ee/bin:/usr/local/ps2dev/iop/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
         run: |
-          # Now ee-gcc will be found automatically
           make -f Makefile.libretro
 
-      - name: Create ISO for PCSX2
+      - name: Create ISO
         run: |
           mkdir -p iso_root
-          # If your build produces an ELF, copy it. 
-          # Note: A .a file alone won't boot; it needs a frontend ELF.
-          [ -f *.elf ] && cp *.elf iso_root/MAIN.ELF || echo "No ELF to copy"
+          # Copy ELF if it exists, otherwise copy the static lib just for the artifact
+          [ -f *.elf ] && cp *.elf iso_root/MAIN.ELF || echo "No ELF found"
           
-          # Basic boot configuration
           echo "BOOT2 = cdrom0:\MAIN.ELF;1" > iso_root/SYSTEM.CNF
           echo "VER = 1.00" >> iso_root/SYSTEM.CNF
           echo "VMODE = NTSC" >> iso_root/SYSTEM.CNF
