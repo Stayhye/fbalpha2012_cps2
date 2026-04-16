@@ -10,15 +10,21 @@ jobs:
       - name: Install System Dependencies
         run: |
           apk update
-          apk add --no-cache git make build-base cdrkit libc6-compat
+          # gcompat allows the PS2 compilers to run on Alpine Linux
+          apk add --no-cache git make build-base cdrkit gcompat
 
       - name: Checkout Base Code
         uses: actions/checkout@v4
 
       - name: Fix Git and Submodules
         run: |
+          # Fix ownership issues
           git config --global --add safe.directory /__w/fbalpha2012_cps2/fbalpha2012_cps2
+          
+          # Force submodules
           git submodule update --init --recursive
+          
+          # Emergency manual clone for libretro-common
           if [ ! -f "libretro-common/file/retro_dirent.c" ]; then
             rm -rf libretro-common
             git clone --depth 1 https://github.com/libretro/libretro-common.git libretro-common
@@ -26,32 +32,43 @@ jobs:
 
       - name: Compile
         run: |
-          # Define paths locally within the step to ensure they are fresh
+          # Define absolute paths
           export PS2DEV=/usr/local/ps2dev
           export PS2SDK=$PS2DEV/ps2sdk
-          export EE_BIN=$PS2DEV/ee/bin
+          export BIN=$PS2DEV/ee/bin
           
-          # We pass the absolute path of the compilers directly into the make variables
+          # Add to path for this step
+          export PATH=$BIN:$PS2DEV/bin:$PATH
+          
+          # Run make and force the compiler locations
           make -f Makefile.libretro \
-            PS2DEV=$PS2DEV \
-            PS2SDK=$PS2SDK \
-            CC=$EE_BIN/ee-gcc \
-            CXX=$EE_BIN/ee-g++ \
-            AR=$EE_BIN/ee-ar
+            CC=$BIN/ee-gcc \
+            CXX=$BIN/ee-g++ \
+            AR=$BIN/ee-ar
 
       - name: Create ISO for PCSX2
         run: |
           mkdir -p iso_root
-          [ -f *.elf ] && cp *.elf iso_root/MAIN.ELF || echo "No ELF found"
+          
+          # Copy ELF if built, else copy the .a for debugging
+          if [ -f *.elf ]; then
+            cp *.elf iso_root/MAIN.ELF
+          else
+            echo "No ELF found, copying static lib for artifact storage"
+            cp *.a iso_root/
+          fi
+          
+          # Boot config
           echo "BOOT2 = cdrom0:\MAIN.ELF;1" > iso_root/SYSTEM.CNF
           echo "VER = 1.00" >> iso_root/SYSTEM.CNF
           echo "VMODE = NTSC" >> iso_root/SYSTEM.CNF
+          
           mkisofs -o fba_cps2.iso -R -J -V "FBA_CPS2" iso_root/
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: PS2-Build-Output
+          name: PS2-Build-Package
           path: |
             *.a
             *.elf
