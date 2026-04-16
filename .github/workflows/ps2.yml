@@ -5,67 +5,63 @@ on: [push, pull_request, workflow_dispatch]
 jobs:
   build:
     runs-on: ubuntu-latest
-    # Using a specific date-coded tag that is confirmed Debian-based
-    container: ps2dev/ps2dev:2023-01-24
+    container: ps2dev/ps2dev:latest
     steps:
       - name: Install System Dependencies
         run: |
-          apt-get update
-          # genisoimage is the stable Debian tool for making ISOs
-          apt-get install -y git make build-essential genisoimage
+          apk update
+          # gcompat and libc6-compat are essential for the compiler to even 'exist'
+          apk add --no-cache git make build-base cdrkit gcompat libc6-compat libstdc++
 
       - name: Checkout Base Code
         uses: actions/checkout@v4
 
-      - name: Fix Git and Sync Submodules
+      - name: Fix Git and Submodules
         run: |
-          # Fix ownership issues inside the Docker container
           git config --global --add safe.directory /__w/fbalpha2012_cps2/fbalpha2012_cps2
-          
-          # Try standard submodule sync
           git submodule update --init --recursive
-          
-          # Manual fallback for libretro-common if needed
           if [ ! -f "libretro-common/file/retro_dirent.c" ]; then
-            echo "Submodules failed. Manually cloning libretro-common..."
             rm -rf libretro-common
             git clone --depth 1 https://github.com/libretro/libretro-common.git libretro-common
           fi
 
-      - name: Set Environment
+      - name: Force glibc compatibility
         run: |
-          echo "PS2DEV=/usr/local/ps2dev" >> $GITHUB_ENV
-          echo "PS2SDK=/usr/local/ps2dev/ps2sdk" >> $GITHUB_ENV
-          echo "/usr/local/ps2dev/bin" >> $GITHUB_PATH
-          echo "/usr/local/ps2dev/ee/bin" >> $GITHUB_PATH
-          echo "/usr/local/ps2dev/iop/bin" >> $GITHUB_PATH
-
-      - name: Verify Compiler Access
-        run: |
-          # This should return a version string without 'not found' errors
-          ee-gcc --version
+          # Alpine 'not found' fix: Link the expected 64-bit loader to the one provided by gcompat
+          mkdir -p /lib64
+          [ ! -L /lib64/ld-linux-x86-64.so.2 ] && ln -s /lib/ld-linux-x86-64.so.2 /lib64/ld-linux-x86-64.so.2 || true
+          
+          # Tell the system where the PS2 libraries are
+          echo "LD_LIBRARY_PATH=/usr/local/ps2dev/ee/lib:$LD_LIBRARY_PATH" >> $GITHUB_ENV
 
       - name: Compile
         run: |
-          # Build the .a library using your Makefile
-          make -f Makefile.libretro
+          # We define the paths directly in the make command to avoid shell resolution issues
+          export PS2DEV=/usr/local/ps2dev
+          export PS2SDK=$PS2DEV/ps2sdk
+          export BIN=$PS2DEV/ee/bin
+          
+          # Force the use of the absolute binary path
+          make -f Makefile.libretro \
+            CC=$BIN/ee-gcc \
+            CXX=$BIN/ee-g++ \
+            AR=$BIN/ee-ar
 
       - name: Create ISO for PCSX2
         run: |
           mkdir -p iso_root
-          # Copy the .a library or .elf if generated
           if [ -f *.elf ]; then
             cp *.elf iso_root/MAIN.ELF
           else
-            cp *.a iso_root/ 2>/dev/null || echo "No library files found"
+            # Grab the .a if that's all we have for now
+            cp *.a iso_root/ 2>/dev/null || echo "No files"
           fi
           
-          # Boot configuration for PS2
           echo "BOOT2 = cdrom0:\MAIN.ELF;1" > iso_root/SYSTEM.CNF
           echo "VER = 1.00" >> iso_root/SYSTEM.CNF
           echo "VMODE = NTSC" >> iso_root/SYSTEM.CNF
           
-          genisoimage -o fba_cps2.iso -R -J -V "FBA_CPS2" iso_root/
+          mkisofs -o fba_cps2.iso -R -J -V "FBA_CPS2" iso_root/
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
