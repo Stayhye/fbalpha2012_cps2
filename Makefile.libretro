@@ -4,7 +4,6 @@ PS2SDK  ?= $(PS2DEV)/ps2sdk
 
 -include $(PS2SDK)/Defs.make
 
-# Use the compilers provided by the Action
 CC  ?= ee-gcc
 CXX ?= ee-g++
 AR  ?= ee-ar
@@ -13,8 +12,7 @@ TARGET := fbalpha2012_cps2_libretro_ps2.a
 
 # --- Core Source Files ---
 CORE_DIR := .
-BURN_DIR := $(CORE_DIR)/src/burn
-FBA_BURN_DRIVERS_DIR := $(BURN_DIR)/drv/capcom
+FBA_BURN_DRIVERS_DIR := $(CORE_DIR)/src/burn/drv/capcom
 
 SOURCES_C   := $(CORE_DIR)/libretro-common/file/retro_dirent.c
 SOURCES_CXX := $(CORE_DIR)/src/burner/libretro/libretro.cpp \
