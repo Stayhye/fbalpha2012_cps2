@@ -1,9 +1,14 @@
 # --- PS2 Toolchain Configuration ---
-# Paths passed from the environment or discovered by the workflow
+PS2DEV  ?= /usr/local/ps2dev
+PS2SDK  ?= $(PS2DEV)/ps2sdk
+
+# Defs.make contains all the EE_GCC, EE_CXX logic
+-include $(PS2SDK)/Defs.make
+
+# Fallbacks if Defs.make fails to load
 CC  ?= ee-gcc
 CXX ?= ee-g++
 AR  ?= ee-ar
-PS2SDK_PATH ?= /usr/local/ps2dev/ps2sdk
 
 TARGET := fbalpha2012_cps2_libretro_ps2.a
 
@@ -39,8 +44,8 @@ INCFLAGS := -I. \
             -I$(CORE_DIR)/src/burner \
             -I$(CORE_DIR)/src/burner/libretro \
             -I$(CORE_DIR)/libretro-common/include \
-            -I$(PS2SDK_PATH)/ee/include \
-            -I$(PS2SDK_PATH)/common/include
+            -I$(PS2SDK)/ee/include \
+            -I$(PS2SDK)/common/include
 
 OBJECTS := $(SOURCES_C:.c=.o) $(SOURCES_CXX:.cpp=.o)
 
