@@ -10,7 +10,7 @@ jobs:
       - name: Install System Dependencies
         run: |
           apk update
-          # We need these three specifically for glibc binaries to run on Alpine
+          # gcompat and libc6-compat are the absolute requirements for glibc binaries on Alpine
           apk add --no-cache git make build-base cdrkit gcompat libc6-compat libstdc++
 
       - name: Checkout Base Code
@@ -25,17 +25,15 @@ jobs:
             git clone --depth 1 https://github.com/libretro/libretro-common.git libretro-common
           fi
 
-      - name: Force Alpine Compatibility
+      - name: Patch Alpine for glibc
         run: |
-          # Create the expected linker path for 64-bit binaries
+          # This is the "Magic Fix" for Error 127 on Alpine
+          # We create the lib64 directory and link the loader the compiler expects
           mkdir -p /lib64
           ln -sf /lib/ld-linux-x86-64.so.2 /lib64/ld-linux-x86-64.so.2 || true
           
-          # Ensure the compiler binaries have execution permissions
-          chmod +x /usr/local/ps2dev/ee/bin/ee-* 2>/dev/null || true
-          
-          # Force the system to look in the PS2DEV lib folder
-          echo "LD_LIBRARY_PATH=/usr/local/ps2dev/ee/lib:$LD_LIBRARY_PATH" >> $GITHUB_ENV
+          # Ensure the binaries are marked as executable
+          chmod +x /usr/local/ps2dev/ee/bin/ee-*
 
       - name: Compile
         run: |
@@ -43,12 +41,11 @@ jobs:
           export PS2SDK=$PS2DEV/ps2sdk
           export BIN=$PS2DEV/ee/bin
           
-          # Pass absolute paths and force standard shell
+          # Force the use of the absolute path to the compiler
           make -f Makefile.libretro \
             CC=$BIN/ee-gcc \
             CXX=$BIN/ee-g++ \
-            AR=$BIN/ee-ar \
-            SHELL=/bin/sh
+            AR=$BIN/ee-ar
 
       - name: Create ISO for PCSX2
         run: |
