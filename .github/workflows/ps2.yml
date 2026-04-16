@@ -10,8 +10,7 @@ jobs:
       - name: Install System Dependencies
         run: |
           apk update
-          # libc6-compat is the secret sauce for running glibc binaries on Alpine
-          apk add --no-cache git make build-base cdrkit libc6-compat libstdc++
+          apk add --no-cache git make build-base cdrkit libc6-compat
 
       - name: Checkout Base Code
         uses: actions/checkout@v4
@@ -25,23 +24,22 @@ jobs:
             git clone --depth 1 https://github.com/libretro/libretro-common.git libretro-common
           fi
 
-      - name: Set Environment Paths
-        run: |
-          echo "PS2DEV=/usr/local/ps2dev" >> $GITHUB_ENV
-          echo "PS2SDK=/usr/local/ps2dev/ps2sdk" >> $GITHUB_ENV
-          echo "/usr/local/ps2dev/bin" >> $GITHUB_PATH
-          echo "/usr/local/ps2dev/ee/bin" >> $GITHUB_PATH
-          echo "/usr/local/ps2dev/iop/bin" >> $GITHUB_PATH
-
       - name: Compile
         run: |
-          # Use sed to ensure the Makefile isn't overriding our CC with a bad path
-          sed -i 's|^CC.*=.*|CC = ee-gcc|g' Makefile.libretro
-          sed -i 's|^CXX.*=.*|CXX = ee-g++|g' Makefile.libretro
+          # Define paths locally within the step to ensure they are fresh
+          export PS2DEV=/usr/local/ps2dev
+          export PS2SDK=$PS2DEV/ps2sdk
+          export EE_BIN=$PS2DEV/ee/bin
           
-          make -f Makefile.libretro
+          # We pass the absolute path of the compilers directly into the make variables
+          make -f Makefile.libretro \
+            PS2DEV=$PS2DEV \
+            PS2SDK=$PS2SDK \
+            CC=$EE_BIN/ee-gcc \
+            CXX=$EE_BIN/ee-g++ \
+            AR=$EE_BIN/ee-ar
 
-      - name: Create ISO
+      - name: Create ISO for PCSX2
         run: |
           mkdir -p iso_root
           [ -f *.elf ] && cp *.elf iso_root/MAIN.ELF || echo "No ELF found"
