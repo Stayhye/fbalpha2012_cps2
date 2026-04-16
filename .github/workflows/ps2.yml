@@ -15,39 +15,58 @@ jobs:
       - name: Checkout Base Code
         uses: actions/checkout@v4
 
-      - name: Fix Git and Submodules
+      - name: Fix Git and Sync Submodules
         run: |
+          # 1. Fix the dubious ownership error for the container environment
           git config --global --add safe.directory /__w/fbalpha2012_cps2/fbalpha2012_cps2
+          
+          # 2. Force submodule update in case the checkout action was blocked
+          git submodule update --init --recursive
+          
+          # 3. Emergency Clone: If libretro-common is still empty, grab it manually
           if [ ! -f "libretro-common/file/retro_dirent.c" ]; then
+            echo "Submodules failed to sync. Manually cloning libretro-common..."
             rm -rf libretro-common
             git clone --depth 1 https://github.com/libretro/libretro-common.git libretro-common
           fi
 
-      - name: Locate Toolchain
+      - name: Locate Toolchain and Set Environment
         run: |
-          # This finds the actual path of the compiler
-          find /usr -name "ee-gcc" || echo "Not found in /usr"
-          which ee-gcc || echo "Not in PATH"
+          # Use find to locate ee-gcc, then use sed to get the directory path
+          # This handles cases where the toolchain is in /usr/local/ps2dev or /usr/lib/
+          EE_PATH=$(find /usr -name "ee-gcc" | head -n 1 | sed 's|/ee-gcc$||')
+          
+          if [ -z "$EE_PATH" ]; then
+            echo "ERROR: ee-gcc not found in /usr. Build will fail."
+            exit 1
+          fi
+          
+          echo "Found toolchain at: $EE_PATH"
+          
+          # Inject paths into the GitHub Environment for subsequent steps
+          echo "$EE_PATH" >> $GITHUB_PATH
+          echo "PS2DEV=/usr/local/ps2dev" >> $GITHUB_ENV
+          echo "PS2SDK=/usr/local/ps2dev/ps2sdk" >> $GITHUB_ENV
 
       - name: Compile
         run: |
-          # Use 'command -v' to find the binary path dynamically
-          export EE_BIN=$(dirname $(find /usr -name "ee-gcc" | head -n 1))
-          export PATH=$EE_BIN:$PATH
-          echo "Using compiler at: $EE_BIN"
-          
-          make -f Makefile.libretro CC=ee-gcc CXX=ee-g++ AR=ee-ar
+          # Now that the path is injected, ee-gcc is globally available
+          make -f Makefile.libretro
 
-      - name: Create ISO
+      - name: Create ISO for PCSX2
         run: |
           mkdir -p iso_root
-          # Copy ELF if it exists, otherwise copy the static lib just for the artifact
+          
+          # Copy the ELF if it exists. If not, the ISO will be empty but the job won't crash.
+          # Note: We rename it to MAIN.ELF to match our SYSTEM.CNF
           [ -f *.elf ] && cp *.elf iso_root/MAIN.ELF || echo "No ELF found"
           
+          # Create SYSTEM.CNF (The PS2 boot configuration)
           echo "BOOT2 = cdrom0:\MAIN.ELF;1" > iso_root/SYSTEM.CNF
           echo "VER = 1.00" >> iso_root/SYSTEM.CNF
           echo "VMODE = NTSC" >> iso_root/SYSTEM.CNF
           
+          # Build the ISO
           mkisofs -o fba_cps2.iso -R -J -V "FBA_CPS2" iso_root/
 
       - name: Upload Artifacts
